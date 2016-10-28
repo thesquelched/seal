@@ -1,22 +1,21 @@
 require 'octokit'
 
 class GithubFetcher
-  ORGANISATION ||= ENV['SEAL_ORGANISATION']
-
   attr_accessor :people
 
-  def initialize(team_members_accounts, use_labels, exclude_labels, exclude_titles, exclude_repos)
-    @github = Octokit::Client.new(:access_token => ENV['GITHUB_TOKEN'],
-                                  :api_endpoint => ENV['GITHUB_API_URL'] || 'https://api.github.com/',
-                                  :web_endpoint => ENV['GITHUB_URL'] || 'https://github.com/')
+  def initialize(config, team)
+    @team = team.name
+    @github = Octokit::Client.new(:access_token => config.access_token,
+                                  :api_endpoint => config.api_url,
+                                  :web_endpoint => config.url)
     @github.user.login
     @github.auto_paginate = true
-    @people = team_members_accounts
-    @use_labels = use_labels
-    @exclude_labels = exclude_labels.map(&:downcase).uniq if exclude_labels
-    @exclude_titles = exclude_titles.map(&:downcase).uniq if exclude_titles
+    @people = team.members || []
+    @use_labels = team.use_labels
+    @exclude_labels = team.exclude_labels.map(&:downcase).uniq if team.exclude_labels
+    @exclude_titles = team.exclude_titles
+    @exclude_repos = team.exclude_repos
     @labels = {}
-    @exclude_repos = exclude_repos
   end
 
   def list_pull_requests
@@ -47,7 +46,7 @@ class GithubFetcher
   # https://developer.github.com/v3/search/#search-issues
   # returns up to 100 results per page.
   def pull_requests_from_github
-    @github.search_issues("is:pr state:open user:#{ORGANISATION}").items
+    @github.search_issues("is:pr state:open user:#{@team}").items
   end
 
   def person_subscribed?(pull_request)
@@ -55,20 +54,20 @@ class GithubFetcher
   end
 
   def count_comments(pull_request, repo)
-    pr = @github.pull_request("#{ORGANISATION}/#{repo}", pull_request.number)
+    pr = @github.pull_request("#{@team}/#{repo}", pull_request.number)
     (pr.review_comments + pr.comments).to_s
   end
 
   def count_thumbs_up(pull_request, repo)
-    response = @github.issue_comments("#{ORGANISATION}/#{repo}", pull_request.number)
+    response = @github.issue_comments("#{@team}/#{repo}", pull_request.number)
     comments_string = response.map {|comment| comment.body}.join
     thumbs_up = comments_string.scan(/:\+1:/).count.to_s
   end
 
   def labels(pull_request, repo)
     return [] unless use_labels
-    key = "#{ORGANISATION}/#{repo}/#{pull_request.number}".to_sym
-    @labels[key] ||= @github.labels_for_issue("#{ORGANISATION}/#{repo}", pull_request.number)
+    key = "#{@team}/#{repo}/#{pull_request.number}".to_sym
+    @labels[key] ||= @github.labels_for_issue("#{@team}/#{repo}", pull_request.number)
   end
 
   def hidden?(pull_request, repo)
@@ -85,11 +84,10 @@ class GithubFetcher
   end
 
   def excluded_title?(title)
-    exclude_titles && exclude_titles.any? { |t| title.downcase.include?(t) }
+    exclude_titles && exclude_titles.any? { |rgx| rgx.match(title) }
   end
 
   def excluded_repo?(repo)
-    return false unless exclude_repos
-    exclude_repos.include?(repo)
+    exclude_repos && exclude_repos.any? { |rgx| rgx.match(repo) }
   end
 end

@@ -2,4 +2,5 @@
 
 require './lib/seal'
 
-Seal.new(ARGV[0], ARGV[1]).bark
+raise ArgumentError, 'Usage: seal.rb <organization> [<team> ...]' if ARGV.empty?
+Seal.new(ARGV[0], ARGV.drop(1)).bark

@@ -2,17 +2,12 @@ class MessageBuilder
 
   attr_accessor :pull_requests, :report, :mood, :poster_mood
 
-  def initialize(content, mode=nil)
+  def initialize(content)
     @content = content
-    @mode = mode
   end
 
   def build
-    if @mode == "quotes"
-      bark_about_quotes
-    else
-      github_seal
-    end
+    github_seal
   end
 
   def github_seal
@@ -63,10 +58,6 @@ class MessageBuilder
 
   def no_pull_requests
     "Aloha team! It's a beautiful day! :happyseal: :happyseal: :happyseal:\n\nNo pull requests to review today! :rainbow: :sunny: :metal: :tada:"
-  end
-
-  def bark_about_quotes
-    @content.sample
   end
 
   def comments(pull_request)

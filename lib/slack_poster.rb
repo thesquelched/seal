@@ -4,24 +4,25 @@ class SlackPoster
 
   attr_accessor :webhook_url, :poster, :mood, :mood_hash, :channel, :season_name, :halloween_season, :festive_season
 
-  def initialize(webhook_url, team_channel, mood)
-    @webhook_url = webhook_url
+  def initialize(config, team_channel, mood, dryrun: false)
+    @webhook_url = config.webhook_url
     @team_channel = team_channel
     @mood = mood
     @today = Date.today
-    @postable_day = !today.saturday? && !today.sunday?
+    @postable_day = config.weekends || (!today.saturday? && !today.sunday?)
+    @dryrun = dryrun
+
     mood_hash
-    channel
     create_poster
   end
 
   def create_poster
-    @poster = Slack::Poster.new("#{webhook_url}", slack_options)
+    @poster = Slack::Poster.new(webhook_url, slack_options)
   end
 
   def send_request(message)
-    if ENV['DRY']
-      puts "Will#{' not' unless postable_day} post #{mood} message to #{channel} on #{today.strftime('%A')}"
+    if @dryrun
+      puts "Will#{' not' unless postable_day} post #{mood} message to #{team_channel} on #{today.strftime('%A')}"
       puts slack_options.inspect
       puts message
     else
@@ -44,7 +45,6 @@ class SlackPoster
   def mood_hash
     @mood_hash = {}
     check_season
-    check_if_quotes
     assign_poster_settings
   end
 
@@ -95,16 +95,4 @@ class SlackPoster
     string.downcase.gsub(" ", "_")
   end
 
-  def check_if_quotes
-    if @team_channel == "#tea"
-      @mood = "tea"
-    elsif @mood == nil
-      @mood = "charter"
-      @postable_day = today.tuesday? || today.thursday?
-    end
-  end
-
-  def channel
-    @team_channel = '#angry-seal-bot-test' if ENV["DYNO"].nil?
-  end
 end
